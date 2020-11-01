@@ -103,7 +103,9 @@ final class Fiber
 }
 ```
 
-`Fiber::await()` accepts an instance of `Awaitable` and an instance of `FiberScheduler`. These interfaces are implemented by user code.
+`Fiber::await()` accepts an instance of `Awaitable` and an instance of `FiberScheduler`. Those interfaces are implemented by user code.
+
+The Fiber class would be implemented internally to PHP using the [Boost Fiber](https://www.boost.org/doc/libs/1_67_0/libs/fiber/doc/html/index.html) library. That library is distributed as source code, under the [Boost license](https://www.boost.org/LICENSE_1_0.txt] which allows it to be distributed with PHP.
 
 #### Awaitable 
 
@@ -147,6 +149,23 @@ If `FiberScheduler::run()` throws an exception, that would result in the engine 
 
 A fiber //must// be resumed from the fiber created from the instance of `FiberScheduler` provided to `Fiber::await()`. Doing otherwise results in a fatal error. In practice this means that a resolving awaitable must defer invocation of registered callbacks to the `FiberScheduler` instance. Often it is desirable to ensure resolution of awaitables is asynchronous, making it easier to reason about program state before and after resolving an awaitable.
 
+
+#### FiberError
+
+FiberError is an engine error that is thrown when a user calls the Fiber API in a way that is not supported:
+
+* calling Fiber::await() within FiberScheduler::run() 
+* calling a continuation callback when the fiber is not suspended.
+
+**TODO - these two need examples** 
+
+#### FiberExit
+
+FiberExit: An uncatchable exception that is thrown when an unrecoverable error occurs, such as attempting to resume a fiber from a different scheduler. I also throw a FiberExit exception into an unfinished fiber to execute finally blocks, which is similar to what generators do. 
+
+**TODO replace those words with example**
+**TODO seperate the unrecoverable error bit from the throwing into fiber bit**
+
 #### Unfinished Fibers 
 Fibers that are not finished (i.e. that have not completed execution) are destroyed similar to unfinished generators, executing any pending `finally` blocks. `Fiber::await()` may not be invoked in a force-closed fiber, just as `yield` cannot be used in a force-closed generator.
 
@@ -164,9 +183,9 @@ There are two things that have been thought about, but have been excluded from t
 
 #### 'async' and 'await' keywords 
 
-The code `Fiber::await()` is a little bit awkward to read or write.
+The code `Fiber::await(...)` is a little bit awkward to read or write.
 
-At some point, `Fiber::await()` could be replaced with the keyword `await` and new fibers could be created using the keyword `async`. That would allow programmers to indicate that the a particular function or method call should return an awaitable and start a new fiber (green-thread).
+At some point, `Fiber::await(...)` could be replaced with the keyword `await` and new fibers could be created using the keyword `async`. That would allow programmers to indicate that the a particular function or method call should return an awaitable and start a new fiber (green-thread).
 
 This is different from the languages JS and Hack. In those languages the usage of `async` is only used to declare asynchronous functions. It doesn't allow programmers to declare that functions should be called asynchronously.
 
@@ -175,9 +194,16 @@ This idea would require PHP including an internally defined `FiberScheduler` and
 It might look something like this:
 
 ``` php
+
+// async modifies the function call to return an awaitable. 
+// Internally a new fiber would be created and execution 
+// of this code would continue immediately, without waiting for 
+// the function to be completed.
 $awaitable = async functionOrMethod();
-// async modifies the call to return an awaitable, creating a new fiber, so execution continues immediately.
-await $awaitable; // Await the function result at a later point.
+
+// Await allows you to wait for the function to end and return a value.
+$value = await $awaitable; 
+**TODO - this that correct?**
 ```
 
 #### 'defer' keyword
